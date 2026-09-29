@@ -153,6 +153,16 @@ El proyecto usa Next.js App Router. `npm install` genera Prisma Client mediante 
 
 Vercel aplica las variables solo a nuevos despliegues, así que crea un nuevo despliegue después de cambiarlas. No declares secretos con prefijo `NEXT_PUBLIC_`: las variables de ese tipo se incluyen en el JavaScript que recibe el navegador. Consulta la [guía de despliegue de Next.js en Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs) y la [documentación de variables de entorno de Vercel](https://vercel.com/docs/environment-variables).
 
+### Error `Configura BETTER_AUTH_SECRET antes de iniciar la aplicación`
+
+Este error durante `npm run build` indica que `BETTER_AUTH_SECRET` no está configurada para el entorno de ese despliegue. En Vercel, abre **Project Settings → Environment Variables**, crea una variable llamada exactamente `BETTER_AUTH_SECRET` y asígnale un secreto aleatorio de al menos 32 caracteres. Puedes generar uno localmente con:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```
+
+Selecciona los entornos que correspondan al despliegue (por ejemplo, **Production** y **Preview**), guarda la variable y vuelve a desplegar. Mantén el secreto privado, sin el prefijo `NEXT_PUBLIC_`, y estable entre despliegues del mismo entorno para que las sesiones existentes sigan siendo válidas.
+
 ## Mantenimiento
 
 Cuando cambie `prisma/schema.prisma`, crea y aplica una migración en desarrollo, y regenera el cliente:
