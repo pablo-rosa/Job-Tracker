@@ -1,4 +1,4 @@
-import type { ApplicationStatus } from "@prisma/client";
+import type { ApplicationStatus } from "@/generated/prisma";
 import { statuses, statusLabels } from "@/lib/application";
 
 export function Filters({ query, status, onQueryChange, onStatusChange }: { query: string; status: ApplicationStatus | "ALL"; onQueryChange: (value: string) => void; onStatusChange: (value: ApplicationStatus | "ALL") => void }) {

@@ -1,5 +1,7 @@
 node_modules/
+src/generated/prisma/
 .next/
+.vercel/
 out/
 build/
 coverage/

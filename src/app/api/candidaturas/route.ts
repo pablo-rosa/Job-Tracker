@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { serializeApplication, statuses, type ApplicationInput } from "@/lib/application";
+import { getActiveSession } from "@/lib/auth-session";
 
 function parseInput(value: unknown): ApplicationInput | null {
   if (!value || typeof value !== "object") return null;
@@ -14,8 +15,10 @@ function parseInput(value: unknown): ApplicationInput | null {
 }
 
 export async function GET() {
+  const session = await getActiveSession();
+  if (!session) return NextResponse.json({ error: "Inicia sesión para ver tus candidaturas." }, { status: 401 });
   try {
-    const applications = await prisma.application.findMany({ orderBy: { createdAt: "desc" } });
+    const applications = await prisma.application.findMany({ where: { userId: session.user.id }, orderBy: { createdAt: "desc" } });
     return NextResponse.json(applications.map(serializeApplication));
   } catch {
     return NextResponse.json({ error: "No se pudieron cargar las candidaturas. Comprueba la conexión con la base de datos." }, { status: 503 });
@@ -23,11 +26,14 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const session = await getActiveSession();
+  if (session?.user.role === "demo") return NextResponse.json({ error: "La cuenta demo es de solo lectura." }, { status: 403 });
+  if (!session) return NextResponse.json({ error: "Inicia sesión para guardar candidaturas." }, { status: 401 });
   let data: ApplicationInput | null;
   try { data = parseInput(await request.json()); } catch { data = null; }
   if (!data) return NextResponse.json({ error: "La empresa y el puesto son obligatorios." }, { status: 400 });
   try {
-    const application = await prisma.application.create({ data });
+    const application = await prisma.application.create({ data: { ...data, userId: session.user.id } });
     return NextResponse.json(serializeApplication(application), { status: 201 });
   } catch {
     return NextResponse.json({ error: "No se pudo guardar la candidatura. Comprueba la conexión con la base de datos." }, { status: 503 });
@@ -35,13 +41,18 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const session = await getActiveSession();
+  if (session?.user.role === "demo") return NextResponse.json({ error: "La cuenta demo es de solo lectura." }, { status: 403 });
+  if (!session) return NextResponse.json({ error: "Inicia sesión para editar candidaturas." }, { status: 401 });
   let payload: unknown;
   try { payload = await request.json(); } catch { return NextResponse.json({ error: "Datos no válidos." }, { status: 400 }); }
   const body = payload as Record<string, unknown>;
   const data = parseInput(body);
   if (typeof body.id !== "string" || !body.id || !data) return NextResponse.json({ error: "La empresa y el puesto son obligatorios." }, { status: 400 });
   try {
-    const application = await prisma.application.update({ where: { id: body.id }, data });
+    const ownedApplication = await prisma.application.findFirst({ where: { id: body.id, userId: session.user.id }, select: { id: true } });
+    if (!ownedApplication) return NextResponse.json({ error: "No se encontró esa candidatura." }, { status: 404 });
+    const application = await prisma.application.update({ where: { id: ownedApplication.id }, data });
     return NextResponse.json(serializeApplication(application));
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "P2025") return NextResponse.json({ error: "No se encontró esa candidatura." }, { status: 404 });
@@ -50,11 +61,16 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const session = await getActiveSession();
+  if (session?.user.role === "demo") return NextResponse.json({ error: "La cuenta demo es de solo lectura." }, { status: 403 });
+  if (!session) return NextResponse.json({ error: "Inicia sesión para eliminar candidaturas." }, { status: 401 });
   let id: unknown;
   try { id = (await request.json()).id; } catch { return NextResponse.json({ error: "Datos no válidos." }, { status: 400 }); }
   if (typeof id !== "string" || !id) return NextResponse.json({ error: "Falta el identificador de la candidatura." }, { status: 400 });
   try {
-    await prisma.application.delete({ where: { id } });
+    const ownedApplication = await prisma.application.findFirst({ where: { id, userId: session.user.id }, select: { id: true } });
+    if (!ownedApplication) return NextResponse.json({ error: "No se encontró esa candidatura." }, { status: 404 });
+    await prisma.application.delete({ where: { id: ownedApplication.id } });
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "P2025") return NextResponse.json({ error: "No se encontró esa candidatura." }, { status: 404 });

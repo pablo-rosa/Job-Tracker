@@ -1,4 +1,4 @@
-import type { Application, ApplicationStatus } from "@prisma/client";
+import type { Application, ApplicationStatus } from "@/generated/prisma";
 import { statusLabels } from "@/lib/application";
 
 export function DashboardStats({ applications }: { applications: Pick<Application, "status">[] }) {
